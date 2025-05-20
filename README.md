@@ -1,7 +1,5 @@
 # 🗣️ ASR-API Server
 
-這是一個以open-webui 為核心構建的語音客服服務，使用 [Open-webui](https://github.com/open-webui/open-webui) [Taigi](https://huggingface.co/Bohanlu/Taigi-Llama-2-Translator-7B) , [FastAPI](https://fastapi.tiangolo.com/)  開發，並已容器化，方便快速部署與整合。
-
 ## 🚀 功能特色
 
 - ✅ 提供 `/v1/transcription` 語音抄寫 API
@@ -75,9 +73,10 @@ docker compose up --build
 #### 🧪 測試範例
 
 ```bash
-curl -X POST http://localhost:7000/audio/transcriptions \
-  -F "file=@test.wav" \
-  -F "model=whisper-1"
+curl -X POST http://localhost:10000/v1/audio/transcriptions \
+  -F "file=@A099-1.1.wav" \
+  -F "model=whisper-1" \
+  -F "answer_file=@A099-1.1.txt"
 ```
 
 ---
