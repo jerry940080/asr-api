@@ -89,4 +89,4 @@ curl -X POST http://localhost:10000/v1/audio/transcriptions \
 ```
 
 #### UI範例
-![alt text](image.png)
+![alt text](image-1.png)
