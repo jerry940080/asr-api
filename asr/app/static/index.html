@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>ASR 語音辨識介面</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #000;
+      color: #fff;
+      font-family: "Segoe UI", sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 70%;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .container {
+      flex: 1;
+      background-color: #1e1e1e;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+      position: relative;
+      min-height: 300px;
+    }
+
+    .mic-button {
+      width: 120px;
+      height: 120px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .mic-button img {
+      height: 100%;
+      width: auto;
+      filter: invert(100%);
+    }
+
+    .drop-zone {
+      border: 2px dashed #888;
+      border-radius: 10px;
+      padding: 40px;
+      text-align: center;
+      min-height: 200px;
+      transition: background-color 0.3s;
+      position: relative;
+    }
+
+    .drop-zone.dragover {
+      background-color: #333;
+    }
+
+    .upload-btn {
+      display: none;
+      position: absolute;
+      bottom: 15px;
+      right: 20px;
+      padding: 8px 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    pre.result-text {
+      white-space: pre-wrap;
+      color: #0f0;
+      font-size: 1rem;
+      margin-top: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div id="dropZone" class="drop-zone">
+        <p id="dropText">拖曳音訊檔案到這裡進行辨識</p>
+        <pre id="result" class="result-text">結果將顯示於此</pre>
+        <button id="uploadBtn" class="upload-btn" onclick="uploadAudio()">上傳</button>
+      </div>
+    </div>
+
+    <button class="mic-button" onclick="toggleRecording()">
+      <img src="/static/mic.png" alt="Mic" />
+    </button>
+  </div>
+  <script>
+    let mediaRecorder;
+    let recordedChunks = [];
+    let droppedAudioFile = null;
+    let droppedTxtFile = null;
+
+    const dropZone = document.getElementById("dropZone");
+    const resultDiv = document.getElementById("result");
+    const uploadBtn = document.getElementById("uploadBtn");
+
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("dragover");
+    });
+
+    dropZone.addEventListener("dragleave", () => {
+      dropZone.classList.remove("dragover");
+    });
+
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("dragover");
+
+      const files = Array.from(e.dataTransfer.files);
+      let foundAudio = false;
+      let foundTxt = false;
+
+      files.forEach(file => {
+        if (file.type.startsWith("audio")) {
+          droppedAudioFile = file;
+          foundAudio = true;
+        } else if (file.name.endsWith(".txt")) {
+          droppedTxtFile = file;
+          foundTxt = true;
+        }
+      });
+
+      if (foundAudio) {
+        document.getElementById("dropText").textContent = `已選擇音訊檔：${droppedAudioFile.name}`;
+        uploadBtn.style.display = "inline-block";
+      }
+
+      if (foundTxt) {
+        document.getElementById("dropText").textContent += `\n已選擇文字檔：${droppedTxtFile.name}`;
+      }
+
+      if (!foundAudio && !foundTxt) {
+        alert("請拖曳音訊檔案（如 mp3 或 wav），或對應的 .txt 文字檔");
+      }
+    });
+
+    async function toggleRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        resultDiv.textContent = "⏳ 上傳中...";
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
+
+        mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+          droppedAudioFile = new File([blob], 'recording.webm', { type: 'audio/webm' });
+          document.getElementById("dropText").textContent = `錄音完成：${droppedAudioFile.name}`;
+          uploadBtn.style.display = "inline-block";
+        };
+
+        mediaRecorder.start();
+        resultDiv.textContent = "🔴 錄音中...";
+      } catch (err) {
+        alert("無法取得麥克風權限：" + err);
+      }
+    }
+
+    async function uploadAudio() {
+      if (!droppedAudioFile) {
+        alert("尚未選擇音訊檔案");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", droppedAudioFile);
+      formData.append("model", "whisper-1");
+
+      if (droppedTxtFile) {
+        formData.append("answer_file", droppedTxtFile);
+      }
+
+      resultDiv.textContent = "⏳ 上傳中...";
+
+      try {
+        const response = await fetch("/v1/audio/transcriptions", {
+          method: "POST",
+          body: formData
+        });
+
+        const result = await response.json();
+
+        // 表格顯示結果
+        resultDiv.innerHTML = `
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+            <tr style="border-bottom: 1px solid #555;">
+              <td style="padding: 8px; font-weight: bold;">檔案名稱</td>
+              <td style="padding: 8px;">${result["檔案名稱"]}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #555;">
+              <td style="padding: 8px; font-weight: bold;">抄寫內容</td>
+              <td style="padding: 8px;">${result["抄寫內容"]}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #555;">
+              <td style="padding: 8px; font-weight: bold;">正確答案</td>
+              <td style="padding: 8px;">${result["正確答案"]}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #555;">
+              <td style="padding: 8px; font-weight: bold;">運行時長</td>
+              <td style="padding: 8px;">${result["運行時長"]}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #555;">
+              <td style="padding: 8px; font-weight: bold;">WER</td>
+              <td style="padding: 8px;">${result["WER"]}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; font-weight: bold;">CER</td>
+              <td style="padding: 8px;">${result["CER"]}</td>
+            </tr>
+          </table>
+        `;
+
+        uploadBtn.style.display = "none";
+        droppedAudioFile = null;
+        droppedTxtFile = null;
+      } catch (err) {
+        resultDiv.textContent = "❌ 錯誤：" + err;
+      }
+    }
+  </script>
+</body>
+</html>

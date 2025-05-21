@@ -1,5 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import shutil, os, traceback, time
 from tempfile import NamedTemporaryFile
 from whisper_handler import transcribe_audio
@@ -8,6 +10,13 @@ import Levenshtein
 import jieba  # 加入 jieba 斷詞
 
 app = FastAPI()
+
+app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
+
+@app.get("/")
+async def read_index():
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    return FileResponse(os.path.join(static_dir, "index.html"))
 
 def calculate_cer(reference: str, hypothesis: str) -> float:
     reference = reference.replace(" ", "")

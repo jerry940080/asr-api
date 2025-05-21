@@ -20,8 +20,7 @@ rezolve-fastapi/
 │
 ├── asr/
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── asr_model.py       # ASR API 接口
+│   │   ├── main_asr.py
 │   │   └── whisper_handler.py # asr模型載入 (faster-whisper 格式)
 │   │
 │   ├── models/                # 用來儲存 ASR 模型檔案
